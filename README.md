@@ -40,8 +40,8 @@ To run this project, you need to have Python 3.8+ installed. Follow these steps:
 
 Clone the Repository:
 
-git clone [https://github.com/your-username/your-project-name.git](https://github.com/your-username/your-project-name.git)
-cd your-project-name
+git clone (https://github.com/CanTouch/Customer_Segmentation.git)
+cd Customer_Segmentation
 
 Install Dependencies:
 The project uses a requirements.txt file to manage its dependencies. It's recommended to do this within a virtual environment.
