@@ -1,3 +1,6 @@
+# This script creates an interactive dashboard using Streamlit
+# to perform customer segmentation with RFM analysis and K-Means clustering.
+
 # Core libraries for dashboarding and data manipulation
 import streamlit as st
 import pandas as pd
@@ -6,7 +9,6 @@ import plotly.express as px
 from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
 import datetime as dt
-import os
 
 # Set up the Streamlit page
 st.set_page_config(
@@ -20,14 +22,12 @@ def load_and_prepare_data():
     Loads, cleans, and prepares the data for RFM analysis.
     This function encapsulates all the data processing steps.
     """
-    # Try loading from the workspace root if not found in 'data/raw/'
-    data_path = 'data/raw/online-retail.xlsx'
-    if not os.path.exists(data_path):
-        data_path = 'Online Retail.xlsx'
     try:
-        df = pd.read_excel(data_path)
+        # Load the data from the 'data/raw/' directory using the 'pandas' library.
+        # This path is relative to the project's root folder.
+        df = pd.read_excel('data/raw/online-retail.xlsx')
     except FileNotFoundError:
-        st.error(f"Error: '{data_path}' not found. Please ensure the file exists.")
+        st.error("Error: The file 'online-retail.xlsx' was not found. Please ensure it's in the 'data/raw/' folder within your repository.")
         st.stop()
     
     # Data Cleaning and Preparation using 'pandas'
@@ -84,12 +84,12 @@ def create_persona_summary(rfm_table, cluster_centers_df):
         'Recency': 'mean',
         'Frequency': 'mean',
         'Monetary': 'mean'
-    })
+    }).reset_index()
     
     # Map cluster numbers to persona names based on typical RFM characteristics
-    # Note: These are a generalized example and may need to be adjusted based on the data
+    # The fix is here: we now sort by 'log_Monetary'
     persona_map = {}
-    sorted_clusters = cluster_centers_df.sort_values(by='Monetary', ascending=False)
+    sorted_clusters = cluster_centers_df.sort_values(by='log_Monetary', ascending=False)
     
     if len(sorted_clusters) >= 2:
         persona_map[sorted_clusters.index[0]] = "Champions"
@@ -103,19 +103,18 @@ def create_persona_summary(rfm_table, cluster_centers_df):
     if len(sorted_clusters) >= 6:
         persona_map[sorted_clusters.index[5]] = "Lost Customers"
     
-    # Add a "Persona" column to the summary using 'pandas'
-    cluster_summary['Persona'] = cluster_summary.index.map(persona_map)
-    cluster_summary = cluster_summary.sort_values(by='Recency').reset_index()
+    # Add Persona labels
+    cluster_summary['Persona'] = cluster_summary['Cluster'].map(persona_map)
     
-    # Format the monetary values for display
-    cluster_summary['Monetary'] = cluster_summary['Monetary'].apply(lambda x: f"${x:.2f}")
+    # Format Monetary values for the summary table (not for plotting)
+    cluster_summary_display = cluster_summary.copy()
+    cluster_summary_display['Monetary'] = cluster_summary_display['Monetary'].apply(lambda x: f"${x:.2f}")
     
-    # Get the raw RFM centroids and add persona names
-    raw_centroids = cluster_centers_df.copy()
-    raw_centroids['Cluster'] = raw_centroids.index
-    raw_centroids['Persona'] = raw_centroids.index.map(persona_map)
+    # Raw centroids for radar chart (numeric only, not formatted)
+    raw_centroids = cluster_summary[['Cluster', 'Recency', 'Frequency', 'Monetary']].copy()
+    raw_centroids['Persona'] = raw_centroids['Cluster'].map(persona_map)
 
-    return cluster_summary, persona_map, raw_centroids
+    return cluster_summary_display, persona_map, raw_centroids
 
 # Main application logic using 'streamlit'
 st.title("Customer Segmentation Dashboard")
@@ -124,14 +123,14 @@ This interactive dashboard allows you to explore different customer segments bas
 The segmentation is performed using the Recency, Frequency, and Monetary (RFM) model and K-Means clustering.
 """)
 
-# Load the data once and cache it for performance with Streamlit's caching
+# Load the data cache it for performance with Streamlit's caching
 @st.cache_data
 def get_rfm_data():
     return load_and_prepare_data()
 
 rfm_data = get_rfm_data()
 
-# User input for number of clusters using Streamlit widgets
+# User input for number of clusters 
 with st.sidebar:
     st.header("Dashboard Controls")
     num_clusters = st.slider(
@@ -140,7 +139,7 @@ with st.sidebar:
     )
     st.info(f"Choosing {num_clusters} segments allows for clear, actionable customer personas.")
 
-# Run clustering based on user selection
+# Run clustering 
 rfm_clustered, X_scaled, cluster_centers = scale_and_cluster_data(rfm_data.copy(), num_clusters)
 cluster_summary, persona_map, raw_centroids = create_persona_summary(rfm_clustered, cluster_centers)
 
@@ -174,17 +173,25 @@ st.plotly_chart(fig_3d, use_container_width=True)
 # Add a radar chart to visualize cluster centroids
 st.subheader("Cluster Persona Radar Chart")
 st.write("This radar chart visually compares the average RFM values of each customer segment.")
+
+metrics = ['Recency', 'Frequency', 'Monetary']
+melted = raw_centroids.melt(
+    id_vars=['Persona'],
+    value_vars=metrics,
+    var_name='Metric',
+    value_name='Value'
+)
+
 fig_radar = px.line_polar(
-    raw_centroids,
-    r=['Recency', 'Frequency', 'Monetary'],
-    theta=['Recency', 'Frequency', 'Monetary'],
+    melted,
+    r='Value',
+    theta='Metric',
     color='Persona',
     line_close=True,
     title='Cluster Centroids',
-    labels={'r': 'Metric Value'}
+    labels={'Value': 'Metric Value'}
 )
 st.plotly_chart(fig_radar, use_container_width=True)
-
 
 # Detailed analysis for each persona using Streamlit's selectbox and columns
 st.subheader("Detailed Persona Profiles")
