@@ -54,3 +54,5 @@ With all dependencies installed, you can launch the interactive dashboard from y
 streamlit run app.py
 
 This command will automatically open a new browser tab with the running application.
+
+Streamlit App Url: https://cantouch-customer-segmentation-app-fwblah.streamlit.app/
